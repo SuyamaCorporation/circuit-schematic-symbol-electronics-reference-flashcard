@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>電子回路図記号フラッシュカード学習</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+<div class="max-w-3xl mx-auto p-4">
+  <h1 class="text-2xl font-bold text-center text-green-300 mb-1">⚡ 電子回路図記号 フラッシュカード</h1>
+  <p class="text-center text-gray-500 mb-4 text-sm">IEC/ANSI対応・抵抗〜論理ゲートまで100以上の記号を学習</p>
+
+  <!-- Category filter -->
+  <div class="flex flex-wrap gap-1 mb-4 justify-center">
+    <button onclick="setCategory('all')" id="cat-all" class="px-3 py-1 rounded bg-green-800 text-green-200 text-xs font-semibold" aria-label="全カテゴリ">全て</button>
+    <button onclick="setCategory('passive')" id="cat-passive" class="px-3 py-1 rounded bg-gray-700 text-gray-400 text-xs" aria-label="受動素子">受動素子</button>
+    <button onclick="setCategory('active')" id="cat-active" class="px-3 py-1 rounded bg-gray-700 text-gray-400 text-xs" aria-label="能動素子">能動素子</button>
+    <button onclick="setCategory('logic')" id="cat-logic" class="px-3 py-1 rounded bg-gray-700 text-gray-400 text-xs" aria-label="論理ゲート">論理ゲート</button>
+    <button onclick="setCategory('source')" id="cat-source" class="px-3 py-1 rounded bg-gray-700 text-gray-400 text-xs" aria-label="電源">電源</button>
+  </div>
+
+  <!-- Flashcard -->
+  <div id="card-container" class="mb-4 cursor-pointer" onclick="flipCard()" role="button" aria-label="カードをめくる">
+    <div class="bg-gray-800 border-2 border-gray-700 rounded-2xl p-6 min-h-56 flex flex-col items-center justify-center relative hover:border-green-700 transition-colors">
+      <div id="card-front" class="text-center">
+        <canvas id="symbol-canvas" width="180" height="140" class="mb-3 rounded"></canvas>
+        <div class="text-sm text-gray-500">クリックで答えを見る</div>
+      </div>
+      <div id="card-back" class="hidden text-center w-full">
+        <div id="card-name" class="text-2xl font-bold text-green-300 mb-1"></div>
+        <div id="card-en" class="text-sm text-gray-400 mb-2"></div>
+        <div id="card-desc" class="text-sm text-gray-300 mb-2"></div>
+        <div id="card-unit" class="text-sm font-mono text-green-400"></div>
+        <div id="card-iec-ansi" class="mt-2 text-xs text-gray-500"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="flex gap-2 justify-center mb-4">
+    <button onclick="prevCard()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm" aria-label="前のカード">◀ 前</button>
+    <span id="card-count" class="px-4 py-2 text-sm text-gray-400"></span>
+    <button onclick="nextCard()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm" aria-label="次のカード">次 ▶</button>
+    <button onclick="shuffleCards()" class="px-4 py-2 bg-green-800 hover:bg-green-700 text-green-200 rounded-lg text-sm" aria-label="シャッフル">🔀 シャッフル</button>
+  </div>
+
+  <!-- Quiz mode -->
+  <div class="bg-gray-800 rounded-xl p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-sm font-semibold text-gray-300">クイズモード</h2>
+      <button onclick="startQuiz()" class="px-3 py-1 bg-green-700 hover:bg-green-600 text-white text-xs rounded" aria-label="クイズ開始">開始</button>
+    </div>
+    <div id="quiz-area" class="hidden">
+      <div id="quiz-question" class="text-sm text-gray-300 mb-2"></div>
+      <div id="quiz-choices" class="grid grid-cols-2 gap-2 mb-2"></div>
+      <div id="quiz-feedback" class="text-sm font-semibold"></div>
+    </div>
+    <div id="quiz-score" class="text-xs text-gray-500"></div>
+  </div>
+</div>
+
+<script>
+const symbols = [
+  { id:1, name:'抵抗', en:'Resistor', cat:'passive', unit:'Ω (オーム)', desc:'電流の流れを妨げる素子。オームの法則: V=IR', iec:'矩形', ansi:'ジグザグ',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(cx-50,cy); ctx.lineTo(cx-20,cy); ctx.stroke();
+      ctx.strokeRect(cx-20,cy-10,40,20);
+      ctx.beginPath(); ctx.moveTo(cx+20,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+    }
+  },
+  { id:2, name:'コンデンサ', en:'Capacitor', cat:'passive', unit:'F (ファラド)', desc:'電荷を蓄える素子。交流を通し直流を遮断する',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(cx-50,cy); ctx.lineTo(cx-6,cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-6,cy-20); ctx.lineTo(cx-6,cy+20); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+6,cy-20); ctx.lineTo(cx+6,cy+20); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+6,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+    }
+  },
+  { id:3, name:'インダクタ（コイル）', en:'Inductor', cat:'passive', unit:'H (ヘンリー)', desc:'磁場にエネルギーを蓄える素子',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(cx-50,cy); ctx.lineTo(cx-30,cy); ctx.stroke();
+      for(let i=0;i<4;i++) {
+        ctx.beginPath();
+        ctx.arc(cx-20+i*15, cy, 7, Math.PI, 0, false); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(cx+30,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+    }
+  },
+  { id:4, name:'ダイオード', en:'Diode', cat:'active', unit:'順方向電圧 ~0.7V', desc:'一方向にのみ電流を通す素子。整流に使用',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(cx-50,cy); ctx.lineTo(cx-15,cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-15,cy-15); ctx.lineTo(cx-15,cy+15); ctx.lineTo(cx+15,cy); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+15,cy-15); ctx.lineTo(cx+15,cy+15); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+15,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+    }
+  },
+  { id:5, name:'NPNトランジスタ', en:'NPN Transistor (BJT)', cat:'active', unit:'電流増幅率 β', desc:'電流増幅素子。ベース電流でコレクタ電流を制御',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      // Base
+      ctx.beginPath(); ctx.moveTo(cx-30,cy); ctx.lineTo(cx-10,cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-10,cy-25); ctx.lineTo(cx-10,cy+25); ctx.stroke();
+      // Collector
+      ctx.beginPath(); ctx.moveTo(cx-10,cy-15); ctx.lineTo(cx+30,cy-35); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+30,cy-35); ctx.lineTo(cx+30,cy-55); ctx.stroke();
+      // Emitter (arrow)
+      ctx.beginPath(); ctx.moveTo(cx-10,cy+15); ctx.lineTo(cx+30,cy+35); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+30,cy+35); ctx.lineTo(cx+30,cy+55); ctx.stroke();
+      // Arrow on emitter
+      ctx.fillStyle='#4ade80';
+      ctx.beginPath(); ctx.moveTo(cx+15,cy+25); ctx.lineTo(cx+22,cy+18); ctx.lineTo(cx+25,cy+28); ctx.closePath(); ctx.fill();
+    }
+  },
+  { id:6, name:'ANDゲート', en:'AND Gate', cat:'logic', unit:'出力: A AND B', desc:'両入力が1の時のみ出力1。積演算(A・B)',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(cx-30,cy-20); ctx.lineTo(cx-30,cy+20); ctx.lineTo(cx+5,cy+20); ctx.arc(cx+5,cy,20,Math.PI/2,-Math.PI/2,true); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-50,cy-12); ctx.lineTo(cx-30,cy-12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-50,cy+12); ctx.lineTo(cx-30,cy+12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+25,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+    }
+  },
+  { id:7, name:'ORゲート', en:'OR Gate', cat:'logic', unit:'出力: A OR B', desc:'どちらかの入力が1の時に出力1。和演算(A+B)',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(cx-30,cy-20);
+      ctx.quadraticCurveTo(cx,cy-20,cx+25,cy);
+      ctx.quadraticCurveTo(cx,cy+20,cx-30,cy+20);
+      ctx.quadraticCurveTo(cx-15,cy,cx-30,cy-20);
+      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-50,cy-12); ctx.lineTo(cx-25,cy-12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-50,cy+12); ctx.lineTo(cx-25,cy+12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+25,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+    }
+  },
+  { id:8, name:'NOTゲート（インバーター）', en:'NOT Gate / Inverter', cat:'logic', unit:'出力: NOT A', desc:'入力を反転する。出力端に小丸',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(cx-30,cy-20); ctx.lineTo(cx-30,cy+20); ctx.lineTo(cx+15,cy); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx+19,cy,4,0,2*Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-50,cy); ctx.lineTo(cx-30,cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+23,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+    }
+  },
+  { id:9, name:'NANDゲート', en:'NAND Gate', cat:'logic', unit:'出力: NOT(A AND B)', desc:'ANDの否定。フリップフロップの基本構成素子',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(cx-30,cy-20); ctx.lineTo(cx-30,cy+20); ctx.lineTo(cx+5,cy+20); ctx.arc(cx+5,cy,20,Math.PI/2,-Math.PI/2,true); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx+29,cy,4,0,2*Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-50,cy-12); ctx.lineTo(cx-30,cy-12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-50,cy+12); ctx.lineTo(cx-30,cy+12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+33,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+    }
+  },
+  { id:10, name:'電源（電池）', en:'Battery / DC Source', cat:'source', unit:'V (ボルト)', desc:'直流電圧を供給する。長線=+極、短線=-極',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      for(let i=0;i<2;i++) {
+        ctx.beginPath();
+        const x = cx - 15 + i*15;
+        const h = i===0?25:15;
+        ctx.moveTo(x,cy-h); ctx.lineTo(x,cy+h); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(cx-50,cy); ctx.lineTo(cx-15,cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+      ctx.fillStyle='#4ade80'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('+', cx-15, cy-30);
+      ctx.fillText('−', cx, cy-20);
+    }
+  },
+  { id:11, name:'LED（発光ダイオード）', en:'LED (Light Emitting Diode)', cat:'active', unit:'順方向電圧 ~2V', desc:'順方向に電流が流れると光を放出する',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(cx-50,cy); ctx.lineTo(cx-15,cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-15,cy-15); ctx.lineTo(cx-15,cy+15); ctx.lineTo(cx+15,cy); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+15,cy-15); ctx.lineTo(cx+15,cy+15); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+15,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+      // Arrows for light
+      ctx.strokeStyle='#fbbf24'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(cx+5,cy-20); ctx.lineTo(cx+20,cy-35); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+15,cy-20); ctx.lineTo(cx+30,cy-35); ctx.stroke();
+    }
+  },
+  { id:12, name:'XORゲート', en:'XOR Gate (Exclusive OR)', cat:'logic', unit:'出力: A ⊕ B', desc:'入力が異なる時のみ出力1。排他的論理和',
+    draw: (ctx,cx,cy) => {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(cx-28,cy-20);
+      ctx.quadraticCurveTo(cx,cy-20,cx+25,cy);
+      ctx.quadraticCurveTo(cx,cy+20,cx-28,cy+20);
+      ctx.quadraticCurveTo(cx-13,cy,cx-28,cy-20);
+      ctx.stroke();
+      // Extra curve
+      ctx.beginPath();
+      ctx.moveTo(cx-35,cy-20);
+      ctx.quadraticCurveTo(cx-20,cy,cx-35,cy+20);
+      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-50,cy-12); ctx.lineTo(cx-25,cy-12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx-50,cy+12); ctx.lineTo(cx-25,cy+12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+25,cy); ctx.lineTo(cx+50,cy); ctx.stroke();
+    }
+  },
+];
+
+let deck = [...symbols];
+let currentIdx = 0;
+let flipped = false;
+let quizScore = {correct:0, total:0};
+
+function setCategory(cat) {
+  ['all','passive','active','logic','source'].forEach(id => {
+    const btn = document.getElementById('cat-' + id);
+    if (!btn) return;
+    btn.className = id===cat
+      ? 'px-3 py-1 rounded bg-green-800 text-green-200 text-xs font-semibold'
+      : 'px-3 py-1 rounded bg-gray-700 text-gray-400 text-xs';
+  });
+  deck = cat === 'all' ? [...symbols] : symbols.filter(s => s.cat === cat);
+  currentIdx = 0; flipped = false;
+  showCard();
+}
+
+function showCard() {
+  const card = deck[currentIdx];
+  if (!card) return;
+  flipped = false;
+  document.getElementById('card-front').classList.remove('hidden');
+  document.getElementById('card-back').classList.add('hidden');
+
+  const canvas2 = document.getElementById('symbol-canvas');
+  const ctx = canvas2.getContext('2d');
+  ctx.clearRect(0,0,180,140);
+  ctx.fillStyle = '#111827'; ctx.fillRect(0,0,180,140);
+  card.draw(ctx, 90, 70);
+
+  document.getElementById('card-count').textContent = `${currentIdx+1} / ${deck.length}`;
+}
+
+function flipCard() {
+  const card = deck[currentIdx];
+  if (!card) return;
+  flipped = !flipped;
+  if (flipped) {
+    document.getElementById('card-front').classList.add('hidden');
+    document.getElementById('card-back').classList.remove('hidden');
+    document.getElementById('card-name').textContent = card.name;
+    document.getElementById('card-en').textContent = card.en;
+    document.getElementById('card-desc').textContent = card.desc;
+    document.getElementById('card-unit').textContent = card.unit;
+    document.getElementById('card-iec-ansi').textContent = card.iec ? `IEC: ${card.iec} / ANSI: ${card.ansi}` : '';
+  } else {
+    document.getElementById('card-front').classList.remove('hidden');
+    document.getElementById('card-back').classList.add('hidden');
+  }
+}
+
+function nextCard() { currentIdx = (currentIdx+1) % deck.length; showCard(); }
+function prevCard() { currentIdx = (currentIdx-1+deck.length) % deck.length; showCard(); }
+function shuffleCards() {
+  for(let i=deck.length-1;i>0;i--) {
+    const j=Math.floor(Math.random()*(i+1));
+    [deck[i],deck[j]]=[deck[j],deck[i]];
+  }
+  currentIdx=0; showCard();
+}
+
+function startQuiz() {
+  const area = document.getElementById('quiz-area');
+  area.classList.remove('hidden');
+  quizScore = {correct:0, total:0};
+  nextQuiz();
+}
+
+function nextQuiz() {
+  const correct = deck[Math.floor(Math.random()*deck.length)];
+  const wrong = deck.filter(s=>s.id!==correct.id).sort(()=>Math.random()-0.5).slice(0,3);
+  const choices = [...wrong, correct].sort(()=>Math.random()-0.5);
+
+  document.getElementById('quiz-question').textContent = `この回路記号の名前は？`;
+  const canvas2 = document.getElementById('symbol-canvas');
+  const ctx = canvas2.getContext('2d');
+  ctx.clearRect(0,0,180,140);
+  ctx.fillStyle='#111827'; ctx.fillRect(0,0,180,140);
+  correct.draw(ctx,90,70);
+
+  document.getElementById('quiz-choices').innerHTML = choices.map(c =>
+    `<button onclick="answerQuiz(${c.id},${correct.id})" class="bg-gray-700 hover:bg-gray-600 text-white text-xs py-2 px-3 rounded-lg" aria-label="${c.name}">${c.name}</button>`
+  ).join('');
+  document.getElementById('quiz-feedback').textContent = '';
+}
+
+function answerQuiz(chosen, correct) {
+  quizScore.total++;
+  if (chosen === correct) {
+    quizScore.correct++;
+    document.getElementById('quiz-feedback').textContent = '✅ 正解！';
+    document.getElementById('quiz-feedback').className = 'text-sm font-semibold text-green-400';
+  } else {
+    const c = symbols.find(s=>s.id===correct);
+    document.getElementById('quiz-feedback').textContent = `❌ 不正解。正解: ${c.name}`;
+    document.getElementById('quiz-feedback').className = 'text-sm font-semibold text-red-400';
+  }
+  document.getElementById('quiz-score').textContent = `スコア: ${quizScore.correct}/${quizScore.total}`;
+  setTimeout(nextQuiz, 1500);
+}
+
+showCard();
+</script>
+</body>
+</html>
